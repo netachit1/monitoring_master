@@ -22,7 +22,6 @@ def current_monitoring_data():
     return my_date
 my_data = current_monitoring_data()
 
-print(my_data)
 
 
 try:
