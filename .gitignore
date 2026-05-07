@@ -1,1 +1,35 @@
+# محیط مجازی
+myenv/
+__pycache__/
+*.pyc
+
+# فایل‌های دیتا (حساس)
+monitoring_data.json
+monitoring_data_backup.json
+
+# لاگ فایل‌ها
+*.log
+monitoring.out
+
+# فایل‌های موقت
+*.tmp
 *.swp
+*~
+
+# IDE
+.vscode/
+.idea/
+
+# پشتیبان‌ها
+*.bak
+*backup*
+
+# فایل‌های تست
+testspeed.py
+auto_monitor.py
+
+# سخت افزار
+.DS_Store
+Thumbs.db*.swp
+monitoring_data.json
+monitoring_data.json

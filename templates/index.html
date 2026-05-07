@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>داشبورد مانیتورینگ</title>
+    <!-- حذف FontAwesome استفاده از یونیکد ساده -->
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .dashboard {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            color: white;
+            font-size: 1.8rem;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 20px;
+            text-align: center;
+            transition: transform 0.2s;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-3px);
+            background: rgba(255, 255, 255, 0.15);
+        }
+
+        .stat-card h3 {
+            color: rgba(255,255,255,0.9);
+            font-size: 0.9rem;
+            margin-bottom: 10px;
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: bold;
+            color: white;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 6px;
+            background: rgba(0,0,0,0.3);
+            border-radius: 3px;
+            margin-top: 10px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            transition: width 0.3s ease;
+        }
+
+        .critical { background: #ff6b6b; }
+        .warning { background: #ffd93d; }
+        .good { background: #6bcb77; }
+
+        .history-section {
+            background: rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 20px;
+            overflow-x: auto;
+        }
+
+        .history-section h3 {
+            color: white;
+            margin-bottom: 15px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            color: #eee;
+            font-size: 0.85rem;
+        }
+
+        th, td {
+            padding: 10px;
+            text-align: center;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+
+        th {
+            background: rgba(255,255,255,0.1);
+        }
+
+        .update-status {
+            text-align: center;
+            margin-top: 20px;
+            color: rgba(255,255,255,0.6);
+            font-size: 0.75rem;
+        }
+
+        @media (max-width: 600px) {
+            .stat-value { font-size: 1.5rem; }
+            th, td { padding: 5px; font-size: 0.7rem; }
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard">
+        <div class="header">
+            <h1>📊 مانیتورینگ سرور</h1>
+        </div>
+
+        <div class="stats-grid" id="statsGrid"></div>
+
+        <div class="history-section">
+            <h3>📜 تاریخچه (آخرین ۱۰ رکورد)</h3>
+            <div style="overflow-x: auto;">
+                <table id="historyTable">
+                    <thead>
+                        <tr><th>زمان</th><th>CPU</th><th>RAM</th><th>DISK</th><th>اتصالات</th></tr>
+                    </thead>
+                    <tbody id="historyBody">
+                        <tr><td colspan="5">در حال بارگذاری...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="update-status" id="updateMsg"></div>
+    </div>
+
+    <script>
+        // تابع رنگ مصرف
+        function getColorClass(value) {
+            if(value > 80) return 'critical';
+            if(value > 60) return 'warning';
+            return 'good';
+        }
+
+        // تابع بروزرسانی (بدون Chart.js)
+        let lastData = null;
+
+        async function updateDashboard() {
+            try {
+                const start = performance.now();
+                const response = await fetch('/api/monitoring');
+                const data = await response.json();
+                const fetchTime = (performance.now() - start).toFixed(0);
+
+                if(!data || data.length === 0) return;
+
+                // آخرین دیتا
+                const latest = data[data.length - 1];
+
+                // بروزرسانی آمار لحظه‌ای
+                document.getElementById('statsGrid').innerHTML = `
+                    <div class="stat-card">
+                        <h3>💻 CPU</h3>
+                        <div class="stat-value">${latest.cpu}%</div>
+                        <div class="progress-bar"><div class="progress-fill ${getColorClass(latest.cpu)}" style="width: ${latest.cpu}%"></div></div>
+                    </div>
+                    <div class="stat-card">
+                        <h3>🧠 RAM</h3>
+                        <div class="stat-value">${latest.mem}%</div>
+                        <div class="progress-bar"><div class="progress-fill ${getColorClass(latest.mem)}" style="width: ${latest.mem}%"></div></div>
+                    </div>
+                    <div class="stat-card">
+                        <h3>💾 DISK</h3>
+                        <div class="stat-value">${latest.disk}%</div>
+                        <div class="progress-bar"><div class="progress-fill ${getColorClass(latest.disk)}" style="width: ${latest.disk}%"></div></div>
+                    </div>
+                    <div class="stat-card">
+                        <h3>🔌 اتصالات</h3>
+                        <div class="stat-value">${latest.connections}</div>
+                    </div>
+                `;
+
+                // بروزرسانی جدول تاریخچه (فقط DOM تغییر کنه، کل جدول رو نریز)
+                const tbody = document.getElementById('historyBody');
+                const last10 = data.slice(-10).reverse();
+
+                let html = '';
+                for(let record of last10) {
+                    const time = record.timestamp ? record.timestamp.slice(11, 16) : '--:--';
+                    html += `
+                        <tr>
+                            <td>${time}</td>
+                            <td style="color: ${record.cpu > 80 ? '#ff6b6b' : record.cpu > 60 ? '#ffd93d' : '#6bcb77'}">${record.cpu}%</td>
+                            <td style="color: ${record.mem > 80 ? '#ff6b6b' : record.mem > 60 ? '#ffd93d' : '#6bcb77'}">${record.mem}%</td>
+                            <td style="color: ${record.disk > 85 ? '#ff6b6b' : record.disk > 70 ? '#ffd93d' : '#6bcb77'}">${record.disk}%</td>
+                            <td>${record.connections}</td>
+                        </tr>
+                    `;
+                }
+                tbody.innerHTML = html;
+
+                const now = new Date();
+                document.getElementById('updateMsg').innerHTML = `🕐 آخرین آپدیت: ${now.toLocaleTimeString('fa-IR')} | تعداد: ${data.length} رکورد | زمان پاسخ: ${fetchTime}ms`;
+
+            } catch(err) {
+                console.error('خطا:', err);
+                document.getElementById('updateMsg').innerHTML = '❌ خطا در دریافت دیتا';
+            }
+        }
+
+        // بارگذاری اولیه و تایمر
+        updateDashboard();
+        setInterval(updateDashboard, 30000);  // هر ۳۰ ثانیه
+    </script>
+</body>
+</html>
