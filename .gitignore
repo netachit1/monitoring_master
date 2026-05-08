@@ -36,3 +36,4 @@ monitoring_data.json
 monitoring_master.db
 monitoring_data.json
 agent/__pycache__
+monitoring_data.json
