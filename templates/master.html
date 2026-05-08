@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>داشبورد مانیتورینگ</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        .container { max-width: 1400px; margin: 0 auto; }
+        h1 { color: white; text-align: center; margin-bottom: 30px; font-size: 1.8rem; }
+
+        /* کارت‌ها */
+        .nodes-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin-bottom: 30px; }
+        .node-card {
+            background: rgba(255,255,255,0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 20px;
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+        .node-card h3 { color: #ffd89b; margin-bottom: 15px; }
+        .metric { margin: 12px 0; color: white; }
+        .metric span { font-weight: bold; color: #ffd89b; }
+        .value { font-size: 1.5rem; font-weight: bold; margin-right: 10px; }
+        .progress-bar { width: 100%; height: 8px; background: rgba(0,0,0,0.3); border-radius: 4px; margin-top: 5px; overflow: hidden; }
+        .progress-fill { height: 100%; transition: width 0.3s; }
+        .good { background: #6bcb77; }
+        .warning { background: #ffd93d; }
+        .critical { background: #ff6b6b; }
+
+        /* بخش تاریخچه با بارهای ساده */
+        .history-section {
+            background: rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+        .history-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .history-header h3 { color: white; }
+        select {
+            background: rgba(0,0,0,0.6);
+            color: white;
+            padding: 8px 15px;
+            border-radius: 10px;
+            border: 1px solid rgba(255,255,255,0.3);
+            cursor: pointer;
+        }
+        .history-list {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .history-item {
+            background: rgba(255,255,255,0.05);
+            border-radius: 10px;
+            padding: 10px;
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .history-time { color: #ffd89b; font-size: 0.8rem; min-width: 70px; }
+        .history-bars {
+            flex: 1;
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+        .bar-item {
+            flex: 1;
+            min-width: 80px;
+        }
+        .bar-label { font-size: 0.7rem; color: rgba(255,255,255,0.7); margin-bottom: 3px; }
+        .bar-bg {
+            background: rgba(0,0,0,0.5);
+            height: 20px;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        .bar-fill {
+            height: 100%;
+            border-radius: 10px;
+            transition: width 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            padding-right: 5px;
+            color: white;
+            font-size: 0.7rem;
+            font-weight: bold;
+        }
+        .bar-cpu { background: #ff6b6b; }
+        .bar-ram { background: #4ecdc4; }
+        .bar-disk { background: #ffe66d; color: #333; }
+
+        .update-footer { text-align: center; margin-top: 20px; color: rgba(255,255,255,0.5); font-size: 0.7rem; }
+
+        @media (max-width: 700px) {
+            .history-item { flex-direction: column; align-items: stretch; }
+            .history-time { text-align: center; }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>📊 مانیتورینگ سرور</h1>
+    <div id="nodes" class="nodes-grid"></div>
+
+    <div class="history-section">
+        <div class="history-header">
+            <h3>📜 تاریخچه مصرف</h3>
+            <div>
+                <select id="nodeSelect">
+                    <option value="">-- انتخاب سرور --</option>
+                </select>
+                <select id="limitSelect">
+                    <option value="20">آخرین 20</option>
+                    <option value="50">آخرین 50</option>
+                    <option value="100">آخرین 100</option>
+                    <option value="999999">همه</option>
+                </select>
+            </div>
+        </div>
+        <div id="historyList" class="history-list">
+            <div style="color:white; text-align:center;">در حال بارگذاری...</div>
+        </div>
+    </div>
+    <div class="update-footer" id="updateMsg"></div>
+</div>
+
+<script>
+    function getProgressClass(value) {
+        if(value > 80) return 'critical';
+        if(value > 60) return 'warning';
+        return 'good';
+    }
+
+    function getBarClass(type) {
+        if(type === 'cpu') return 'bar-cpu';
+        if(type === 'ram') return 'bar-ram';
+        return 'bar-disk';
+    }
+
+    async function loadNodes() {
+        try {
+            const res = await fetch('/api/nodes');
+            const nodes = await res.json();
+            const select = document.getElementById('nodeSelect');
+            select.innerHTML = '<option value="">-- انتخاب سرور --</option>';
+            nodes.forEach(node => {
+                select.innerHTML += `<option value="${node}">🖥️ ${node}</option>`;
+            });
+            if(nodes.length > 0 && !select.value) {
+                select.value = nodes[0];
+                loadHistory(nodes[0]);
+            }
+        } catch(e) { console.error(e); }
+    }
+
+    async function loadHistory(nodeName) {
+        if(!nodeName) return;
+        try {
+            const data = await res.json();
+            const limit = document.getElementById('limitSelect').value;
+            const res = await fetch(`/api/history/${nodeName}/${limit}`);
+            if(!data.length) {
+                document.getElementById('historyList').innerHTML = '<div style="color:white; text-align:center;">تاریخچه‌ای برای این سرور وجود ندارد</div>';
+                return;
+            }
+
+            const html = data.map(item => `
+                <div class="history-item">
+                    <div class="history-time">${item.timestamp.slice(11, 16)}</div>
+                    <div class="history-bars">
+                        <div class="bar-item">
+                            <div class="bar-label">💻 CPU</div>
+                            <div class="bar-bg">
+                                <div class="bar-fill bar-cpu" style="width: ${item.cpu}%">${item.cpu}%</div>
+                            </div>
+                        </div>
+                        <div class="bar-item">
+                            <div class="bar-label">🧠 RAM</div>
+                            <div class="bar-bg">
+                                <div class="bar-fill bar-ram" style="width: ${item.mem}%">${item.mem}%</div>
+                            </div>
+                        </div>
+                        <div class="bar-item">
+                            <div class="bar-label">💾 DISK</div>
+                            <div class="bar-bg">
+                                <div class="bar-fill bar-disk" style="width: ${item.disk}%">${item.disk}%</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+
+            document.getElementById('historyList').innerHTML = html;
+        } catch(e) { console.error(e); }
+    }
+
+    async function loadNodesCards() {
+        try {
+            const res = await fetch('/api/latest');
+            const nodes = await res.json();
+
+            if(!nodes.length) {
+                document.getElementById('nodes').innerHTML = '<p style="color:white; text-align:center;">در انتظار دریافت دیتا...</p>';
+                return;
+            }
+
+            const html = nodes.map(node => `
+                <div class="node-card">
+                    <h3>🖥️ ${node.node}</h3>
+                    <div class="metric">
+                        <span>💻 CPU:</span>
+                        <span class="value">${node.cpu}%</span>
+                        <div class="progress-bar">
+                            <div class="progress-fill ${getProgressClass(node.cpu)}" style="width:${node.cpu}%"></div>
+                        </div>
+                    </div>
+                    <div class="metric">
+                        <span>🧠 RAM:</span>
+                        <span class="value">${node.mem}%</span>
+                        <div class="progress-bar">
+                            <div class="progress-fill ${getProgressClass(node.mem)}" style="width:${node.mem}%"></div>
+                        </div>
+                    </div>
+                    <div class="metric">
+                        <span>💾 DISK:</span>
+                        <span class="value">${node.disk}%</span>
+                        <div class="progress-bar">
+                            <div class="progress-fill ${getProgressClass(node.disk)}" style="width:${node.disk}%"></div>
+                        </div>
+                    </div>
+                    <div class="metric"><span>🔌 Connections:</span> <span class="value">${node.connections}</span></div>
+                    <div class="update-time">⏱️ ${node.timestamp?.slice(11,16) || '--:--'}</div>
+                </div>
+            `).join('');
+
+            document.getElementById('nodes').innerHTML = html;
+            document.getElementById('updateMsg').innerHTML = `🕐 آخرین بروزرسانی: ${new Date().toLocaleTimeString('fa-IR')}`;
+        } catch(e) { console.error(e); }
+    }
+
+    document.getElementById('nodeSelect').addEventListener('change', (e) => {
+        if(e.target.value) loadHistory(e.target.value);
+    });
+
+    loadNodesCards();
+    loadNodes();
+
+    setInterval(() => {
+        loadNodesCards();
+        const selected = document.getElementById('nodeSelect').value;
+        if(selected) loadHistory(selected);
+    }, 10000);
+
+    setInterval(loadNodes, 30000);
+</script>
+</body>
+</html>

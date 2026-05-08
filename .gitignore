@@ -33,3 +33,6 @@ auto_monitor.py
 Thumbs.db*.swp
 monitoring_data.json
 monitoring_data.json
+monitoring_master.db
+monitoring_data.json
+agent/__pycache__
