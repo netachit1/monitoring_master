@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>داشبورد مانیتورینگ</title>
+    <title>داشبورد مانیتورینگ سرور</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -15,26 +15,26 @@
         .container { max-width: 1400px; margin: 0 auto; }
         h1 { color: white; text-align: center; margin-bottom: 30px; font-size: 1.8rem; }
 
-        /* کارت‌ها */
-        .nodes-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin-bottom: 30px; }
+        .nodes-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 20px; margin-bottom: 30px; }
         .node-card {
             background: rgba(255,255,255,0.1);
             backdrop-filter: blur(10px);
             border-radius: 20px;
             padding: 20px;
             border: 1px solid rgba(255,255,255,0.2);
+            transition: transform 0.2s;
         }
-        .node-card h3 { color: #ffd89b; margin-bottom: 15px; }
+        .node-card:hover { transform: translateY(-3px); background: rgba(255,255,255,0.15); }
+        .node-card h3 { color: #ffd89b; margin-bottom: 15px; font-size: 1.3rem; }
         .metric { margin: 12px 0; color: white; }
         .metric span { font-weight: bold; color: #ffd89b; }
-        .value { font-size: 1.5rem; font-weight: bold; margin-right: 10px; }
+        .value { font-size: 1.3rem; font-weight: bold; margin-right: 10px; }
         .progress-bar { width: 100%; height: 8px; background: rgba(0,0,0,0.3); border-radius: 4px; margin-top: 5px; overflow: hidden; }
         .progress-fill { height: 100%; transition: width 0.3s; }
         .good { background: #6bcb77; }
         .warning { background: #ffd93d; }
         .critical { background: #ff6b6b; }
 
-        /* بخش تاریخچه با بارهای ساده */
         .history-section {
             background: rgba(0, 0, 0, 0.4);
             backdrop-filter: blur(10px);
@@ -132,7 +132,7 @@
                     <option value="20">آخرین 20</option>
                     <option value="50">آخرین 50</option>
                     <option value="100">آخرین 100</option>
-                    <option value="999999">همه</option>
+                    <option value="500">آخرین 500</option>
                 </select>
             </div>
         </div>
@@ -150,124 +150,176 @@
         return 'good';
     }
 
-    function getBarClass(type) {
-        if(type === 'cpu') return 'bar-cpu';
-        if(type === 'ram') return 'bar-ram';
-        return 'bar-disk';
+    function getTempClass(temp) {
+        if(!temp) return 'good';
+        if(temp > 80) return 'critical';
+        if(temp > 70) return 'warning';
+        return 'good';
     }
 
     async function loadNodes() {
         try {
-            const res = await fetch('/api/nodes');
-            const nodes = await res.json();
+            const response = await fetch('/api/nodes');
+            const nodes = await response.json();
             const select = document.getElementById('nodeSelect');
             select.innerHTML = '<option value="">-- انتخاب سرور --</option>';
-            nodes.forEach(node => {
-                select.innerHTML += `<option value="${node}">🖥️ ${node}</option>`;
-            });
+            for(let i = 0; i < nodes.length; i++) {
+                const node = nodes[i];
+                select.innerHTML += '<option value="' + node + '">🖥️ ' + node + '</option>';
+            }
             if(nodes.length > 0 && !select.value) {
                 select.value = nodes[0];
                 loadHistory(nodes[0]);
             }
-        } catch(e) { console.error(e); }
+        } catch(e) {
+            console.error('Error loading nodes:', e);
+        }
     }
 
     async function loadHistory(nodeName) {
         if(!nodeName) return;
         try {
-            const data = await res.json();
             const limit = document.getElementById('limitSelect').value;
-            const res = await fetch(`/api/history/${nodeName}/${limit}`);
-            if(!data.length) {
+            const response = await fetch('/api/history/' + encodeURIComponent(nodeName) + '/' + limit);
+            if(!response.ok) throw new Error('HTTP error: ' + response.status);
+            const data = await response.json();
+            if(!data || data.length === 0) {
                 document.getElementById('historyList').innerHTML = '<div style="color:white; text-align:center;">تاریخچه‌ای برای این سرور وجود ندارد</div>';
                 return;
             }
-
-            const html = data.map(item => `
-                <div class="history-item">
-                    <div class="history-time">${item.timestamp.slice(11, 16)}</div>
-                    <div class="history-bars">
-                        <div class="bar-item">
-                            <div class="bar-label">💻 CPU</div>
-                            <div class="bar-bg">
-                                <div class="bar-fill bar-cpu" style="width: ${item.cpu}%">${item.cpu}%</div>
+            let html = '';
+            for(let i = 0; i < data.length; i++) {
+                const item = data[i];
+                const timeStr = item.timestamp ? item.timestamp.slice(11, 16) : '--:--';
+                html += `
+                    <div class="history-item">
+                        <div class="history-time">${timeStr}</div>
+                        <div class="history-bars">
+                            <div class="bar-item">
+                                <div class="bar-label">💻 CPU</div>
+                                <div class="bar-bg">
+                                    <div class="bar-fill bar-cpu" style="width: ${item.cpu}%">${item.cpu}%</div>
+                                </div>
                             </div>
-                        </div>
-                        <div class="bar-item">
-                            <div class="bar-label">🧠 RAM</div>
-                            <div class="bar-bg">
-                                <div class="bar-fill bar-ram" style="width: ${item.mem}%">${item.mem}%</div>
+                            <div class="bar-item">
+                                <div class="bar-label">🧠 RAM</div>
+                                <div class="bar-bg">
+                                    <div class="bar-fill bar-ram" style="width: ${item.mem}%">${item.mem}%</div>
+                                </div>
                             </div>
-                        </div>
-                        <div class="bar-item">
-                            <div class="bar-label">💾 DISK</div>
-                            <div class="bar-bg">
-                                <div class="bar-fill bar-disk" style="width: ${item.disk}%">${item.disk}%</div>
+                            <div class="bar-item">
+                                <div class="bar-label">💾 DISK</div>
+                                <div class="bar-bg">
+                                    <div class="bar-fill bar-disk" style="width: ${item.disk}%">${item.disk}%</div>
+                                </div>
                             </div>
                         </div>
                     </div>
-                </div>
-            `).join('');
-
+                `;
+            }
             document.getElementById('historyList').innerHTML = html;
-        } catch(e) { console.error(e); }
+        } catch(e) {
+            console.error('Error loading history:', e);
+            document.getElementById('historyList').innerHTML = '<div style="color:white; text-align:center;">خطا در بارگذاری تاریخچه</div>';
+        }
     }
 
     async function loadNodesCards() {
         try {
-            const res = await fetch('/api/latest');
-            const nodes = await res.json();
-
-            if(!nodes.length) {
+            const response = await fetch('/api/latest');
+            const nodes = await response.json();
+            if(!nodes || nodes.length === 0) {
                 document.getElementById('nodes').innerHTML = '<p style="color:white; text-align:center;">در انتظار دریافت دیتا...</p>';
                 return;
             }
+            let html = '';
+            for(let i = 0; i < nodes.length; i++) {
+                const node = nodes[i];
+                const tempValue = node.temperature ? node.temperature.toFixed(1) + '°C' : 'N/A';
+                const tempClass = getTempClass(node.temperature);
+                const gpuValue = node.gpu_usage ? node.gpu_usage + '%' : 'N/A';
+                const gpuMemValue = node.gpu_mem ? node.gpu_mem + '%' : 'N/A';
+                const gpuTempValue = node.gpu_temp ? node.gpu_temp.toFixed(1) + '°C' : 'N/A';
 
-            const html = nodes.map(node => `
-                <div class="node-card">
-                    <h3>🖥️ ${node.node}</h3>
-                    <div class="metric">
-                        <span>💻 CPU:</span>
-                        <span class="value">${node.cpu}%</span>
-                        <div class="progress-bar">
-                            <div class="progress-fill ${getProgressClass(node.cpu)}" style="width:${node.cpu}%"></div>
+                html += `
+                    <div class="node-card">
+                        <h3>🖥️ ${node.node}</h3>
+                        <div class="metric">
+                            <span>💻 CPU:</span>
+                            <span class="value">${node.cpu}%</span>
+                            <div class="progress-bar">
+                                <div class="progress-fill ${getProgressClass(node.cpu)}" style="width:${node.cpu}%"></div>
+                            </div>
                         </div>
-                    </div>
-                    <div class="metric">
-                        <span>🧠 RAM:</span>
-                        <span class="value">${node.mem}%</span>
-                        <div class="progress-bar">
-                            <div class="progress-fill ${getProgressClass(node.mem)}" style="width:${node.mem}%"></div>
+                        <div class="metric">
+                            <span>🧠 RAM:</span>
+                            <span class="value">${node.mem}%</span>
+                            <div class="progress-bar">
+                                <div class="progress-fill ${getProgressClass(node.mem)}" style="width:${node.mem}%"></div>
+                            </div>
                         </div>
-                    </div>
-                    <div class="metric">
-                        <span>💾 DISK:</span>
-                        <span class="value">${node.disk}%</span>
-                        <div class="progress-bar">
-                            <div class="progress-fill ${getProgressClass(node.disk)}" style="width:${node.disk}%"></div>
+                        <div class="metric">
+                            <span>💾 DISK:</span>
+                            <span class="value">${node.disk}%</span>
+                            <div class="progress-bar">
+                                <div class="progress-fill ${getProgressClass(node.disk)}" style="width:${node.disk}%"></div>
+                            </div>
                         </div>
+                        <div class="metric">
+                            <span>🎮 GPU:</span>
+                            <span class="value">${gpuValue}</span>
+                            <div class="progress-bar">
+                                <div class="progress-fill ${getProgressClass(node.gpu_usage)}" style="width:${node.gpu_usage || 0}%"></div>
+                            </div>
+                        </div>
+                        <div class="metric">
+                            <span>💾 VRAM:</span>
+                            <span class="value">${gpuMemValue}</span>
+                            <div class="progress-bar">
+                                <div class="progress-fill ${getProgressClass(node.gpu_mem)}" style="width:${node.gpu_mem || 0}%"></div>
+                            </div>
+                        </div>
+                        <div class="metric">
+                            <span>🔌 Connections:</span>
+                            <span class="value">${node.connections}</span>
+                        </div>
+                        <div class="metric">
+                            <span>🌡️ CPU Temp:</span>
+                            <span class="value ${tempClass}">${tempValue}</span>
+                        </div>
+                        <div class="metric">
+                            <span>🎮 GPU Temp:</span>
+                            <span class="value ${getTempClass(node.gpu_temp)}">${gpuTempValue}</span>
+                        </div>
+                        <div class="update-time">⏱️ ${node.timestamp ? node.timestamp.slice(11,16) : '--:--'}</div>
                     </div>
-                    <div class="metric"><span>🔌 Connections:</span> <span class="value">${node.connections}</span></div>
-                    <div class="update-time">⏱️ ${node.timestamp?.slice(11,16) || '--:--'}</div>
-                </div>
-            `).join('');
-
+                `;
+            }
             document.getElementById('nodes').innerHTML = html;
-            document.getElementById('updateMsg').innerHTML = `🕐 آخرین بروزرسانی: ${new Date().toLocaleTimeString('fa-IR')}`;
-        } catch(e) { console.error(e); }
+            document.getElementById('updateMsg').innerHTML = '🕐 آخرین بروزرسانی: ' + new Date().toLocaleTimeString('fa-IR');
+        } catch(e) {
+            console.error('Error loading cards:', e);
+        }
     }
 
-    document.getElementById('nodeSelect').addEventListener('change', (e) => {
+    const nodeSelect = document.getElementById('nodeSelect');
+    nodeSelect.addEventListener('change', function(e) {
         if(e.target.value) loadHistory(e.target.value);
+    });
+
+    const limitSelect = document.getElementById('limitSelect');
+    limitSelect.addEventListener('change', function() {
+        const selectedNode = nodeSelect.value;
+        if(selectedNode) loadHistory(selectedNode);
     });
 
     loadNodesCards();
     loadNodes();
 
-    setInterval(() => {
+    setInterval(function() {
         loadNodesCards();
-        const selected = document.getElementById('nodeSelect').value;
-        if(selected) loadHistory(selected);
+        const selectedNode = nodeSelect.value;
+        if(selectedNode) loadHistory(selectedNode);
     }, 10000);
 
     setInterval(loadNodes, 30000);

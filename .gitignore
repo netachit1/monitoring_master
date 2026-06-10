@@ -1,39 +1,37 @@
-# محیط مجازی
-myenv/
+# Python
 __pycache__/
-*.pyc
+*.py[cod]
+*.so
+.Python
+myenv/
+env/
+venv/
+*.egg-info/
+*.egg
 
-# فایل‌های دیتا (حساس)
-monitoring_data.json
-monitoring_data_backup.json
+# Database
+*.db
+*.db-journal
+*.db.backup
+*.db.old
+monitoring_master.db*
+data/
 
-# لاگ فایل‌ها
-*.log
-monitoring.out
-
-# فایل‌های موقت
-*.tmp
-*.swp
-*~
+# Docker
+.dockerignore
 
 # IDE
 .vscode/
 .idea/
+*.swp
 
-# پشتیبان‌ها
-*.bak
-*backup*
+# Logs
+*.log
 
-# فایل‌های تست
-testspeed.py
-auto_monitor.py
-
-# سخت افزار
+# OS
 .DS_Store
-Thumbs.db*.swp
+Thumbs.db
+
+# Project specific
 monitoring_data.json
-monitoring_data.json
-monitoring_master.db
-monitoring_data.json
-agent/__pycache__
-monitoring_data.json
+*.corrupted

@@ -1,60 +1,19 @@
 version: '3.8'
 
 services:
-  # دیتابیس PostgreSQL
-  postgres:
-    image: postgres:15
-    container_name: monitoring-db
-    environment:
-      POSTGRES_DB: monitoring
-      POSTGRES_USER: admin
-      POSTGRES_PASSWORD: secretpassword123
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+  monitoring:
+    build: .
+    container_name: monitoring_app
     ports:
-      - "5432:5432"
-    networks:
-      - monitoring-net
-    restart: unless-stopped
-
-  # سرور مرکزی (وب + API)
-  web:
-    build: ./web
-    container_name: monitoring-web
-    ports:
-      - "5000:5000"
-    depends_on:
-      - postgres
-    environment:
-      - DB_HOST=postgres
-      - DB_NAME=monitoring
-      - DB_USER=admin
-      - DB_PASS=secretpassword123
+      - "1111:5000"
     volumes:
-      - ./web:/app
-    networks:
-      - monitoring-net
-    restart: unless-stopped
-
-  # Agent (گزارشگر) - میتونی چند تا از این داشته باشی
-  agent:
-    build: ./agent
-    container_name: monitoring-agent
+      # mount فایل دیتابیس
+      - ./monitoring_master.db:/app/monitoring_master.db
+      # mount پوشه دیتا
+      - ./data:/data
+      # mount کل پروژه (برای توسعه)
+      - .:/app
     environment:
-      - SERVER_URL=http://web:5000/api/report
-      - NODE_NAME=main-server
-      - INTERVAL=60
-    volumes:
-      - /proc:/host/proc:ro
-      - /sys:/host/sys:ro
-    networks:
-      - monitoring-net
+      - PYTHONUNBUFFERED=1
+      - TZ=Asia/Tehran
     restart: unless-stopped
-
-networks:
-  monitoring-net:
-    driver: bridge
-
-volumes:
-  postgres_data:

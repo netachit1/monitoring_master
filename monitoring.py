@@ -29,6 +29,9 @@ def get_system_data():
     }
 
 
+
+
+
 def main():
     JSON_FILE = "/home/itachi/pyprojects/monitoring_data.json"
     MAX_RECORDS = 100
